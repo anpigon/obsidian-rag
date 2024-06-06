@@ -14,7 +14,7 @@ Obsidian-Rag는 Langchain을 활용하여 마크다운 파일에서 RAG를 수�
 
 프로젝트의 메인 스크립트는 obsidian_rag.py입니다. 파일 경로와 파일을 벡터화할지 여부를 결정하는 불리언 플래그를 명령줄 인수로 받습니다.
 
-`python obsidian_rag.py --filepath YOUR_FILE_PATH --vectorize`
+`python obsidian_rag.py --notes_dir YOUR_FILE_PATH --vectorize`
 
 이 명령은 아직 작업 중인 그라디오 인터페이스를 열며, 이를 채팅 인터페이스로 만들어야 합니다.
 <img width="688" alt="image" src="https://github.com/ParthSareen/obsidian-rag/assets/29360864/13747e0b-78f8-495e-9f03-c80229d537a6">
