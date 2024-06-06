@@ -5,16 +5,17 @@ import argparse
 from typing import Dict, List, Tuple, Union
 
 from langchain import hub
-from langchain.chat_models import ChatOllama
-from langchain.document_loaders import ObsidianLoader
-from langchain.embeddings import OllamaEmbeddings
-from langchain.schema import StrOutputParser
-from langchain.schema.runnable import RunnablePassthrough
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import chroma
+from langchain_community.chat_models import ChatOllama
+from langchain_community.document_loaders import ObsidianLoader
+from langchain_community.embeddings import OllamaEmbeddings
+from langchain_community.embeddings import HuggingFaceBgeEmbeddings
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnableParallel, RunnablePassthrough
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_chroma import Chroma
 from langchain.chains.question_answering import load_qa_chain
 from langchain.chains import RetrievalQA
-from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+from langchain_core.callbacks import StreamingStdOutCallbackHandler
 
 import gradio as gr
 
@@ -31,6 +32,7 @@ def get_args() -> argparse.Namespace:
         help="Whether to vectorize the file",
     )
     parser.add_argument("--model", help="Input model name")
+    parser.add_argument("--embedding", help="Input embedding model name")
     return parser.parse_args()
 
 
@@ -44,10 +46,18 @@ def remove_all_files_in_folder(directory: str) -> None:
 
 def main(question: str) -> str:
     args = get_args()
-    model = args.model if args.model else "aya"
+    docs_path = args.notes_dir
+    model_name = args.model if args.model != None else "aya"
+    embedding_model_name = args.embedding if args.embedding != None else "BAAI/bge-m3"
+
+    embedding = HuggingFaceBgeEmbeddings(
+        model_name=model_name,
+        model_kwargs={"device": "mps"},
+        encode_kwargs={"normalize_embeddings": True},
+    )
 
     if args.vectorize:
-        loader: ObsidianLoader = ObsidianLoader(path=args.notes_dir)
+        loader: ObsidianLoader = ObsidianLoader(path=docs_path)
         data: List[str] = loader.load()
         text_splitter: RecursiveCharacterTextSplitter = RecursiveCharacterTextSplitter(
             chunk_size=500, chunk_overlap=200
@@ -57,29 +67,31 @@ def main(question: str) -> str:
         # Hard reset cause LLM be weird
         remove_all_files_in_folder("vectorstore")
 
-        vectorstore: chroma.Chroma = chroma.Chroma.from_documents(
+        vectorstore: Chroma = Chroma.from_documents(
             documents=all_splits,
-            embedding=OllamaEmbeddings(model=model),
+            embedding_function=embedding,
             persist_directory="vectorstore",
         )
         print("Vectorized!")
 
     else:
-        vectorstore: chroma.Chroma = chroma.Chroma(
-            embedding_function=OllamaEmbeddings(model=model),
+        vectorstore: Chroma = Chroma(
+            embedding_function=embedding,
             persist_directory="vectorstore",
         )
         print("Loaded vectorstore!")
 
     rag_prompt: str = hub.pull("rlm/rag-prompt")
-    llm = ChatOllama(model=model, callbacks=[StreamingStdOutCallbackHandler()])
+    llm = ChatOllama(model=model_name, callbacks=[StreamingStdOutCallbackHandler()])
 
-    qa_chain = RetrievalQA.from_chain_type(
-        llm,
-        retriever=vectorstore.as_retriever(search_kwargs={"k": 3}),
-        chain_type_kwargs={"prompt": rag_prompt},
+    retriever = vectorstore.as_retriever()
+    qa_chain = (
+        {"context": retriever | format_docs, "question": RunnablePassthrough()}
+        | rag_prompt
+        | llm
+        | StrOutputParser()
     )
-    return qa_chain({"query": question})["result"]
+    return qa_chain.invoke(question)
 
 
 # TODO: seperate out loading function for local vectorstore
