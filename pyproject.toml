@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "obsidian-rag"
+version = "0.1.0"
+description = ""
+authors = ["anpigon <markan82@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+langchain = "^0.2.2"
+langchainhub = "^0.1.17"
+chromadb = "^0.5.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
