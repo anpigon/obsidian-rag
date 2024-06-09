@@ -1,6 +1,7 @@
 import os
 import argparse
 from typing import List
+from dotenv import load_dotenv
 
 from langchain import hub
 from langchain_community.chat_models import ChatOllama
@@ -11,11 +12,14 @@ from langchain_core.runnables import RunnableParallel, RunnablePassthrough
 from langchain.chains import RetrievalQA
 from langchain.embeddings import CacheBackedEmbeddings
 from langchain.storage import LocalFileStore
+from langchain.retrievers import BM25Retriever, EnsembleRetriever
 
 import gradio as gr
 from langchain_community.vectorstores import Chroma
 from langchain_core.callbacks import StreamingStdOutCallbackHandler
 from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
+
+load_dotenv()
 
 
 def get_args() -> argparse.Namespace:
@@ -41,7 +45,7 @@ def remove_all_files_in_folder(directory: str) -> None:
 
 
 def load_vectorstore(
-    docs_path: str, embedding_model_name: str, vectorize: bool
+    ddocuments: List[Document], embedding_model_name: str, vectorize: bool
 ) -> Chroma:
     print("vectorize:", vectorize)
     embeddings = HuggingFaceBgeEmbeddings(
@@ -55,18 +59,11 @@ def load_vectorstore(
     )
 
     if vectorize:
-        loader = ObsidianLoader(path=docs_path)
-        data = loader.load()
-        text_splitter = RecursiveCharacterTextSplitter.from_language(
-            chunk_size=2000, chunk_overlap=200, language=Language.MARKDOWN
-        )
-        all_splits = text_splitter.split_documents(data)
-
         # Hard reset cause LLM be weird
         remove_all_files_in_folder("vectorstore")
 
         vectorstore = Chroma.from_documents(
-            documents=all_splits,
+            documents=documents,
             embedding=cached_embeddings,
             persist_directory="vectorstore",
         )
@@ -92,14 +89,27 @@ def main(
     model_name = model if model else "aya"
     embedding_model_name = embedding if embedding else "BAAI/bge-m3"
 
-    vectorstore = load_vectorstore(docs_path, embedding_model_name, vectorize)
+    text_splitter = RecursiveCharacterTextSplitter.from_language(
+        chunk_size=2000, chunk_overlap=200, language=Language.MARKDOWN
+    )
+    docs = ObsidianLoader(path=docs_path).load_and_split(text_splitter)
+
+    vectorstore = load_vectorstore(docs, embedding_model_name, vectorize)
+
+    # EnsembleRetriever
+    vectorstore_retriever = vectorstore.as_retriever()
+    bm25_retriever = BM25Retriever.from_documents(docs)
+    ensemble_retriever = EnsembleRetriever(
+        retrievers=[bm25_retriever, vectorstore_retriever],
+        weights=[0.5, 0.5],
+        search_type="mmr",
+    )
 
     rag_prompt = hub.pull("rlm/rag-prompt")
     llm = ChatOllama(model=model_name, callbacks=[StreamingStdOutCallbackHandler()])
 
-    retriever = vectorstore.as_retriever()
     qa_chain = (
-        {"context": retriever | format_docs, "question": RunnablePassthrough()}
+        {"context": ensemble_retriever | format_docs, "question": RunnablePassthrough()}
         | rag_prompt
         | llm
         | StrOutputParser()
@@ -110,7 +120,11 @@ def main(
 # Gradio interface
 demo = gr.Interface(
     fn=lambda question: main(
-        question, args.notes_dir, args.vectorize, args.model, args.embedding
+        question=question,
+        notes_dir=args.notes_dir,
+        vectorize=args.vectorize,
+        model=args.model,
+        embedding=args.embedding,
     ),
     inputs="text",
     outputs="text",
@@ -119,3 +133,19 @@ demo = gr.Interface(
 if __name__ == "__main__":
     args = get_args()
     demo.launch(show_api=False)
+
+
+# if __name__ == "__main__":
+#     args = get_args()
+#     while True:
+#         question = input("Enter your question (or type 'exit' to quit): ")
+#         if question.lower() == "exit":
+#             break
+#         answer = main(
+#             question=question,
+#             notes_dir=args.notes_dir,
+#             vectorize=args.vectorize,
+#             model=args.model,
+#             embedding=args.embedding,
+#         )
+#         print("Answer:", answer)
