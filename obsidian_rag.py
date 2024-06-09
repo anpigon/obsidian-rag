@@ -4,6 +4,7 @@ from typing import List
 from dotenv import load_dotenv
 
 from langchain import hub
+from langchain_core.documents import Document
 from langchain_community.chat_models import ChatOllama
 from langchain_community.document_loaders import ObsidianLoader
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
@@ -45,7 +46,7 @@ def remove_all_files_in_folder(directory: str) -> None:
 
 
 def load_vectorstore(
-    ddocuments: List[Document], embedding_model_name: str, vectorize: bool
+    documents: List[Document], embedding_model_name: str, vectorize: bool
 ) -> Chroma:
     print("vectorize:", vectorize)
     embeddings = HuggingFaceBgeEmbeddings(
