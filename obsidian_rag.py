@@ -1,24 +1,25 @@
-import os
 import argparse
+import os
 from typing import List
-from dotenv import load_dotenv
 
+import gradio as gr
+from dotenv import load_dotenv
 from langchain import hub
-from langchain_core.documents import Document
+from langchain.chains import RetrievalQA
+from langchain.embeddings import CacheBackedEmbeddings
+from langchain.retrievers import BM25Retriever, EnsembleRetriever
+from langchain.retrievers.multi_query import MultiQueryRetriever
+from langchain.storage import LocalFileStore
 from langchain_community.chat_models import ChatOllama
 from langchain_community.document_loaders import ObsidianLoader
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnableParallel, RunnablePassthrough
-from langchain.chains import RetrievalQA
-from langchain.embeddings import CacheBackedEmbeddings
-from langchain.storage import LocalFileStore
-from langchain.retrievers import BM25Retriever, EnsembleRetriever
-
-import gradio as gr
 from langchain_community.vectorstores import Chroma
 from langchain_core.callbacks import StreamingStdOutCallbackHandler
-from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
+from langchain_core.documents import Document
+from langchain_core.output_parsers import BaseOutputParser, StrOutputParser
+from langchain_core.prompts import PromptTemplate
+from langchain_core.runnables import RunnableParallel, RunnablePassthrough
+from langchain_text_splitters import Language, RecursiveCharacterTextSplitter
 
 load_dotenv()
 
@@ -102,15 +103,24 @@ def main(
     bm25_retriever = BM25Retriever.from_documents(docs)
     ensemble_retriever = EnsembleRetriever(
         retrievers=[bm25_retriever, vectorstore_retriever],
-        weights=[0.5, 0.5],
+        weights=[0.4, 0.6],
         search_type="mmr",
     )
 
-    rag_prompt = hub.pull("rlm/rag-prompt")
     llm = ChatOllama(model=model_name, callbacks=[StreamingStdOutCallbackHandler()])
 
+    # MultiQueryRetriever
+    multi_query_retriever = MultiQueryRetriever.from_llm(
+        retriever=ensemble_retriever,
+        llm=llm,
+    )
+
+    rag_prompt = hub.pull("rlm/rag-prompt")
     qa_chain = (
-        {"context": ensemble_retriever | format_docs, "question": RunnablePassthrough()}
+        {
+            "context": multi_query_retriever | format_docs,
+            "question": RunnablePassthrough(),
+        }
         | rag_prompt
         | llm
         | StrOutputParser()
