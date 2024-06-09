@@ -15,7 +15,7 @@ from langchain.storage import LocalFileStore
 import gradio as gr
 from langchain_community.vectorstores import Chroma
 from langchain_core.callbacks import StreamingStdOutCallbackHandler
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter, Language
 
 
 def get_args() -> argparse.Namespace:
@@ -57,8 +57,8 @@ def load_vectorstore(
     if vectorize:
         loader = ObsidianLoader(path=docs_path)
         data = loader.load()
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=500, chunk_overlap=200
+        text_splitter = RecursiveCharacterTextSplitter.from_language(
+            chunk_size=2000, chunk_overlap=200, language=Language.MARKDOWN
         )
         all_splits = text_splitter.split_documents(data)
 
