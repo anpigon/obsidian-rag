@@ -1,3 +1,4 @@
+import json
 from urllib.parse import quote
 
 from dotenv import load_dotenv
@@ -10,6 +11,8 @@ from operator import itemgetter
 from pathlib import Path
 
 import streamlit as st
+from streamlit_extras.stylable_container import stylable_container
+
 from langchain.embeddings import CacheBackedEmbeddings
 from langchain.retrievers import BM25Retriever, EnsembleRetriever
 from langchain.storage import LocalFileStore
@@ -43,9 +46,32 @@ root_path = Path.cwd()
 embedding_model_name = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 answer_model_name = os.getenv("MODEL_NAME", "gpt-4o-mini")
 
+# 설정 파일 경로
+CONFIG_FILE = Path.home() / ".obsidian_rag_config.json"
+
+
+# Chat history
+msgs = StreamlitChatMessageHistory(key="chat_messages")
+
+
+def load_config():
+    if CONFIG_FILE.exists():
+        with open(CONFIG_FILE, "r") as f:
+            return json.load(f)
+    return {"last_path": "", "saved_paths": []}
+
+
+def save_config(config):
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config, f)
+
+
 # Streamlit app setup
 st.set_page_config(page_title="Obsidian RAG Chatbot", page_icon=":books:")
 st.title("Obsidian RAG Chatbot")
+
+# 설정 로드
+config = load_config()
 
 # Initialize embedding model
 # model_name = "BAAI/bge-m3"
@@ -105,15 +131,81 @@ def load_vectorstore(obsidian_path: str) -> tuple[VectorStore, KiwiBM25Retriever
 
 
 # Sidebar for Obsidian folder path input
+import streamlit as st
+
+# Sidebar for Obsidian folder path input
 with st.sidebar:
-    obsidian_path = st.text_input(
-        "Enter your Obsidian folder path:", "/path/to/your/obsidian/vault"
-    )
-    if st.button("Start Embedding"):
+    st.header("📚 Obsidian Vault Settings")
+
+    # Container for path selection and input
+    with st.container():
+        # Saved paths dropdown
+        saved_paths = config["saved_paths"]
+        selected_path = st.selectbox(
+            "📂 Choose a saved Obsidian path:",
+            options=[""] + saved_paths,
+            index=(
+                0
+                if config["last_path"] not in saved_paths
+                else saved_paths.index(config["last_path"]) + 1
+            ),
+            key="saved_path_select",
+        )
+
+        # New path input
+        new_path = st.text_input(
+            "🆕 Or enter a new Obsidian folder path:",
+            config["last_path"],
+            key="new_path_input",
+        )
+
+        # Path actions
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button(
+                "💾 Save Path", key="save_path_button", use_container_width=True
+            ):
+                if new_path and new_path not in saved_paths:
+                    saved_paths.append(new_path)
+                    config["saved_paths"] = saved_paths
+                    config["last_path"] = new_path
+                    save_config(config)
+                    st.success(f"Path '{new_path}' saved!")
+                    st.rerun()
+
+        with col2:
+            if st.button(
+                "🗑️ Clear Paths", key="clear_paths_button", use_container_width=True
+            ):
+                config["saved_paths"] = []
+                config["last_path"] = ""
+                save_config(config)
+                st.success("All saved paths cleared!")
+                st.rerun()
+
+    # Selected path display
+    obsidian_path = selected_path or new_path
+    if obsidian_path:
+        st.info(f"📁 Current path: {obsidian_path}")
+
+    # Embedding button
+    if st.button(
+        "🚀 Start Embedding", key="start_embedding_button", use_container_width=True
+    ):
         with st.spinner("Embedding in progress..."):
             (vectorstore, bm25_retriever) = load_vectorstore(obsidian_path)
         st.session_state.vectorstore = vectorstore
         st.session_state.bm25_retriever = bm25_retriever
+
+    # Reset conversation button
+    if st.button(
+        "🔄 Reset Conversation",
+        key="reset_conversation_button",
+        use_container_width=True,
+    ):
+        msgs.clear()
+        st.success("Conversation reset!")
+        st.rerun()
 
 
 def create_obsidian_link(file_path: str, obsidian_vault_path: str) -> str:
@@ -209,14 +301,8 @@ def handle_user_input(user_question):
         st.warning("Please embed your Obsidian folder first.")
 
 
-# Chat history
-msgs = StreamlitChatMessageHistory(key="chat_messages")
-
 # Main interface
 st.header("💬 Chat with your Obsidian Notes")
-
-with st.sidebar:
-    st.button("Reset Conversation", on_click=lambda: msgs.clear())
 
 # Display previous messages
 for msg in msgs.messages:

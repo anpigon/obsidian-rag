@@ -22,6 +22,7 @@ unstructured = "^0.15.0"
 markdown = "^3.6"
 langchain-teddynote = "^0.0.11"
 langchain-huggingface = "^0.0.3"
+streamlit-extras = "^0.4.3"
 
 
 
