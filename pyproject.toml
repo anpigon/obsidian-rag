@@ -6,17 +6,27 @@ authors = ["anpigon <markan82@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
-langchain = "^0.2.2"
-langchainhub = "^0.1.17"
+python = ">=3.11,<3.13"
+langchain = "^0.2.10"
+langchainhub = "^0.1.20"
 langchain_chroma = "^0.1.1"
-langchain-community = "^0.2.3"
-langchain_text_splitters = "^0.2.1"
-sentence_transformers = "^3.0.0"
+langchain_community = "^0.2.9"
+langchain_text_splitters = "^0.2.2"
+sentence_transformers = "^3.0.1"
 chromadb = "^0.5.0"
 gradio = "^4.33.0"
+streamlit = "^1.36.0"
+flagembedding = "^1.2.10"
+python-dotenv = "^1.0.1"
+unstructured = "^0.15.0"
+markdown = "^3.6"
+langchain-teddynote = "^0.0.11"
+langchain-huggingface = "^0.0.3"
 
 
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.5"
 
 [build-system]
 requires = ["poetry-core"]
