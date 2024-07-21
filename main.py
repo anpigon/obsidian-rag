@@ -1,3 +1,4 @@
+import json
 from urllib.parse import quote
 
 from dotenv import load_dotenv
@@ -43,9 +44,28 @@ root_path = Path.cwd()
 embedding_model_name = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 answer_model_name = os.getenv("MODEL_NAME", "gpt-4o-mini")
 
+# 설정 파일 경로
+CONFIG_FILE = Path.home() / ".obsidian_rag_config.json"
+
+
+def load_config():
+    if CONFIG_FILE.exists():
+        with open(CONFIG_FILE, "r") as f:
+            return json.load(f)
+    return {"last_path": "", "saved_paths": []}
+
+
+def save_config(config):
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config, f)
+
+
 # Streamlit app setup
 st.set_page_config(page_title="Obsidian RAG Chatbot", page_icon=":books:")
 st.title("Obsidian RAG Chatbot")
+
+# 설정 로드
+config = load_config()
 
 # Initialize embedding model
 # model_name = "BAAI/bge-m3"
@@ -106,9 +126,37 @@ def load_vectorstore(obsidian_path: str) -> tuple[VectorStore, KiwiBM25Retriever
 
 # Sidebar for Obsidian folder path input
 with st.sidebar:
-    obsidian_path = st.text_input(
-        "Enter your Obsidian folder path:", "/path/to/your/obsidian/vault"
+    st.header("Obsidian Vault Settings")
+
+    # 저장된 경로 선택
+    saved_paths = config["saved_paths"]
+    selected_path = st.selectbox(
+        "Choose a saved Obsidian path:",
+        options=[""] + saved_paths,
+        index=(
+            0
+            if config["last_path"] not in saved_paths
+            else saved_paths.index(config["last_path"]) + 1
+        ),
     )
+
+    # 새 경로 입력
+    new_path = st.text_input(
+        "Or enter a new Obsidian folder path:", config["last_path"]
+    )
+
+    # 경로 저장 버튼
+    if st.button("Save Current Path"):
+        if new_path and new_path not in saved_paths:
+            saved_paths.append(new_path)
+            config["saved_paths"] = saved_paths
+            config["last_path"] = new_path
+            save_config(config)
+            st.success(f"Path '{new_path}' saved!")
+
+    # 선택된 경로나 새 경로 사용
+    obsidian_path = selected_path or new_path
+
     if st.button("Start Embedding"):
         with st.spinner("Embedding in progress..."):
             (vectorstore, bm25_retriever) = load_vectorstore(obsidian_path)
