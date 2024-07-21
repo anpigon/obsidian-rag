@@ -74,15 +74,22 @@ st.title("Obsidian RAG Chatbot")
 config = load_config()
 
 # Initialize embedding model
-# model_name = "BAAI/bge-m3"
-# model_kwargs = {"device": "mps"}
-# encode_kwargs = {"normalize_embeddings": True}
+model_name = "BAAI/bge-m3"
+model_kwargs = {"device": "mps"}
+encode_kwargs = {"normalize_embeddings": True}
 # underlying_embeddings = HuggingFaceBgeEmbeddings(
 #     model_name=model_name,
 #     model_kwargs=model_kwargs,
 #     encode_kwargs=encode_kwargs,
 # )
+model_name = "intfloat/multilingual-e5-large-instruct"
+underlying_embeddings = HuggingFaceEmbeddings(
+    model_name=model_name,
+    model_kwargs=model_kwargs,
+    encode_kwargs=encode_kwargs,
+)
 underlying_embeddings = OpenAIEmbeddings(model=embedding_model_name)
+
 
 # Initialize cache storage
 store = LocalFileStore(root_path / ".cached_embeddings")
@@ -91,10 +98,10 @@ store = LocalFileStore(root_path / ".cached_embeddings")
 cached_embeddings = CacheBackedEmbeddings.from_bytes_store(
     underlying_embeddings=underlying_embeddings,
     document_embedding_cache=store,
-    namespace=(
-        underlying_embeddings.model_name
-        if "model_name" in underlying_embeddings
-        else underlying_embeddings.model
+    namespace=getattr(
+        underlying_embeddings,
+        "model",
+        getattr(underlying_embeddings, "model_name", embedding_model_name),
     ),
 )
 
