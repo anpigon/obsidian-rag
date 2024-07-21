@@ -23,6 +23,8 @@ markdown = "^3.6"
 langchain-teddynote = "^0.0.11"
 langchain-huggingface = "^0.0.3"
 streamlit-extras = "^0.4.3"
+langchain-upstage = "^0.1.7"
+langchain-cohere = "^0.1.9"
 
 
 

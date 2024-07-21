@@ -2,7 +2,6 @@ import json
 from urllib.parse import quote
 
 from dotenv import load_dotenv
-from langchain_openai import OpenAIEmbeddings
 
 load_dotenv()
 
@@ -11,22 +10,18 @@ from operator import itemgetter
 from pathlib import Path
 
 import streamlit as st
-from streamlit_extras.stylable_container import stylable_container
-
 from langchain.embeddings import CacheBackedEmbeddings
 from langchain.retrievers import BM25Retriever, EnsembleRetriever
+from langchain.retrievers.multi_query import MultiQueryRetriever
 from langchain.storage import LocalFileStore
 from langchain.text_splitter import Language, RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
+from langchain_cohere.embeddings import CohereEmbeddings
 from langchain_community.chat_message_histories.streamlit import (
     StreamlitChatMessageHistory,
 )
 from langchain_community.chat_models import ChatOpenAI
-from langchain_community.embeddings import (
-    HuggingFaceBgeEmbeddings,
-    HuggingFaceEmbeddings,
-)
-from langchain.retrievers.multi_query import MultiQueryRetriever
+from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
@@ -34,8 +29,12 @@ from langchain_core.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.vectorstores import VectorStore
+from langchain_huggingface.embeddings import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_teddynote import logging
 from langchain_teddynote.retrievers import KiwiBM25Retriever
+from langchain_upstage.embeddings import UpstageEmbeddings
+from streamlit_extras.stylable_container import stylable_container
 
 from document_loaders.obsidian import MyObsidianLoader
 
@@ -43,11 +42,27 @@ logging.langsmith("obsidian-rag", set_enable=True)
 
 root_path = Path.cwd()
 
-embedding_model_name = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 answer_model_name = os.getenv("MODEL_NAME", "gpt-4o-mini")
 
 # 설정 파일 경로
 CONFIG_FILE = Path.home() / ".obsidian_rag_config.json"
+
+# Embedding model options
+EMBEDDING_MODELS = {
+    "OpenAI text-embedding-3-small": ("openai", "text-embedding-3-small"),
+    "OpenAI text-embedding-3-large": ("openai", "text-embedding-3-large"),
+    "HuggingFace BAAI/bge-m3": ("hf_bge", "BAAI/bge-m3"),
+    "HuggingFace intfloat/multilingual-e5-large-instruct": (
+        "hf",
+        "intfloat/multilingual-e5-large-instruct",
+    ),
+    "HuggingFace intfloat/multilingual-e5-large": (
+        "hf",
+        "intfloat/multilingual-e5-large",
+    ),
+    "Upstage solar-embedding-1-large": ("upstage", "solar-embedding-1-large"),
+    "Cohere embed-multilingual-v3.0": ("cohere", "embed-multilingual-v3.0"),
+}
 
 
 # Chat history
@@ -73,26 +88,45 @@ st.title("Obsidian RAG Chatbot")
 # 설정 로드
 config = load_config()
 
-# Initialize embedding model
-model_name = "BAAI/bge-m3"
-model_kwargs = {"device": "mps"}
-encode_kwargs = {"normalize_embeddings": True}
-# underlying_embeddings = HuggingFaceBgeEmbeddings(
-#     model_name=model_name,
-#     model_kwargs=model_kwargs,
-#     encode_kwargs=encode_kwargs,
-# )
-model_name = "intfloat/multilingual-e5-large-instruct"
-underlying_embeddings = HuggingFaceEmbeddings(
-    model_name=model_name,
-    model_kwargs=model_kwargs,
-    encode_kwargs=encode_kwargs,
-)
-underlying_embeddings = OpenAIEmbeddings(model=embedding_model_name)
-
 
 # Initialize cache storage
 store = LocalFileStore(root_path / ".cached_embeddings")
+
+embedding_model_type = "openai"
+embedding_model_name = "text-embedding-3-small"
+
+
+# Initialize embedding model based on selection
+def initialize_embeddings(model_type, model_name):
+    model_kwargs = {"device": "mps"}  # Change to "cuda" if using GPU
+    encode_kwargs = {"normalize_embeddings": False}
+
+    if model_type == "openai":
+        return OpenAIEmbeddings(model=model_name)
+    elif model_type == "hf_bge":
+        return HuggingFaceBgeEmbeddings(
+            model_name=model_name,
+            model_kwargs=model_kwargs,
+            encode_kwargs=encode_kwargs,
+        )
+    elif model_type == "hf":
+        return HuggingFaceEmbeddings(
+            model_name=model_name,
+            model_kwargs=model_kwargs,
+            encode_kwargs=encode_kwargs,
+        )
+    elif model_type == "upstage":
+        return UpstageEmbeddings(model_name=model_name)
+    elif model_type == "cohere":
+        return CohereEmbeddings(model=model_name)
+    else:
+        raise ValueError(f"Unknown model type: {model_type}")
+
+
+# Initialize the selected embedding model
+underlying_embeddings = initialize_embeddings(
+    embedding_model_type, embedding_model_name
+)
 
 # Create cached embeddings
 cached_embeddings = CacheBackedEmbeddings.from_bytes_store(
@@ -194,6 +228,16 @@ with st.sidebar:
     obsidian_path = selected_path or new_path
     if obsidian_path:
         st.info(f"📁 Current path: {obsidian_path}")
+
+    # Embedding model selection
+    st.subheader("Embedding Model Selection")
+    selected_model = st.selectbox(
+        "Choose an embedding model:",
+        options=list(EMBEDDING_MODELS.keys()),
+        key="embedding_model_select",
+    )
+
+    embedding_model_type, embedding_model_name = EMBEDDING_MODELS[selected_model]
 
     # Embedding button
     if st.button(
