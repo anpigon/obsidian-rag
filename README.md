@@ -1,6 +1,6 @@
 # Obsidian RAG
 
-![](https://i.imgur.com/JyjTmcG.png)
+![](https://i.imgur.com/eKQW8sb.png)
 
 Obsidian-Rag는 Langchain을 활용하여 마크다운 파일에서 RAG를 수행하는 로컬 우선 프로젝트입니다. Obsidian 노트 작성 앱과 함께 사용하도록 설계되었습니다.
 
