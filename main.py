@@ -23,8 +23,10 @@ from langchain_community.embeddings import (
     HuggingFaceBgeEmbeddings,
     HuggingFaceEmbeddings,
 )
+from langchain.retrievers.multi_query import MultiQueryRetriever
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import PromptTemplate
 from langchain_core.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.runnables.history import RunnableWithMessageHistory
@@ -146,18 +148,31 @@ def rag_chain():
         ]
     )
 
+    # VectorStoreRetriever
     vectorstore_retriever = st.session_state.vectorstore.as_retriever(
         search_type="mmr", search_kwargs={"k": 4}
     )
+
+    # BM25Retriever
     bm25_retriever = st.session_state.bm25_retriever
-    retriever = EnsembleRetriever(
+
+    # EnsembleRetriever
+    ensemble_retriever = EnsembleRetriever(
         retrievers=[bm25_retriever, vectorstore_retriever],
         weights=[0.4, 0.6],
         search_type="mmr",
     )
 
+    # MultiQueryRetriever
+    multi_query_retriever = MultiQueryRetriever.from_llm(
+        retriever=ensemble_retriever,
+        llm=llm,
+    )
+
     rag_chain = (
-        RunnablePassthrough.assign(context=itemgetter("question") | retriever)
+        RunnablePassthrough.assign(
+            context=itemgetter("question") | multi_query_retriever
+        )
         | {
             "context": itemgetter("context"),
             "question": itemgetter("question"),
