@@ -64,7 +64,6 @@ EMBEDDING_MODELS = {
     "Cohere embed-multilingual-v3.0": ("cohere", "embed-multilingual-v3.0"),
 }
 
-
 # Chat history
 msgs = StreamlitChatMessageHistory(key="chat_messages")
 
@@ -72,8 +71,24 @@ msgs = StreamlitChatMessageHistory(key="chat_messages")
 def load_config():
     if CONFIG_FILE.exists():
         with open(CONFIG_FILE, "r") as f:
-            return json.load(f)
-    return {"last_path": "", "saved_paths": []}
+            config = json.load(f)
+    else:
+        config = {}
+
+    # Set default values if keys are missing
+    if "last_path" not in config:
+        config["last_path"] = ""
+    if "saved_paths" not in config:
+        config["saved_paths"] = []
+    if (
+        "last_embedding_model" not in config
+        or config["last_embedding_model"] not in EMBEDDING_MODELS
+    ):
+        config["last_embedding_model"] = list(EMBEDDING_MODELS.keys())[
+            0
+        ]  # Default to the first model
+
+    return config
 
 
 def save_config(config):
@@ -88,12 +103,8 @@ st.title("Obsidian RAG Chatbot")
 # 설정 로드
 config = load_config()
 
-
 # Initialize cache storage
 store = LocalFileStore(root_path / ".cached_embeddings")
-
-embedding_model_type = "openai"
-embedding_model_name = "text-embedding-3-small"
 
 
 # Initialize embedding model based on selection
@@ -123,26 +134,6 @@ def initialize_embeddings(model_type, model_name):
         raise ValueError(f"Unknown model type: {model_type}")
 
 
-# Initialize the selected embedding model
-underlying_embeddings = initialize_embeddings(
-    embedding_model_type, embedding_model_name
-)
-
-# Create cached embeddings
-cached_embeddings = CacheBackedEmbeddings.from_bytes_store(
-    underlying_embeddings=underlying_embeddings,
-    document_embedding_cache=store,
-    namespace=getattr(
-        underlying_embeddings,
-        "model",
-        getattr(underlying_embeddings, "model_name", embedding_model_name),
-    ),
-)
-
-# Initialize OpenAI model
-llm = ChatOpenAI(model_name=answer_model_name, temperature=0.1)
-
-
 # Load Obsidian notes and create vector store
 def load_vectorstore(obsidian_path: str) -> tuple[VectorStore, KiwiBM25Retriever]:
     loader = MyObsidianLoader(obsidian_path, encoding="utf-8", collect_metadata=True)
@@ -158,7 +149,6 @@ def load_vectorstore(obsidian_path: str) -> tuple[VectorStore, KiwiBM25Retriever
     vectorstore = Chroma.from_documents(
         texts,
         cached_embeddings,
-        # persist_directory="./.vectorstore",
     )
 
     bm25_retriever = KiwiBM25Retriever.from_documents(texts)
@@ -170,9 +160,6 @@ def load_vectorstore(obsidian_path: str) -> tuple[VectorStore, KiwiBM25Retriever
     st.success("Embedding completed!")
     return (vectorstore, bm25_retriever)
 
-
-# Sidebar for Obsidian folder path input
-import streamlit as st
 
 # Sidebar for Obsidian folder path input
 with st.sidebar:
@@ -234,10 +221,32 @@ with st.sidebar:
     selected_model = st.selectbox(
         "Choose an embedding model:",
         options=list(EMBEDDING_MODELS.keys()),
+        index=list(EMBEDDING_MODELS.keys()).index(config["last_embedding_model"]),
         key="embedding_model_select",
     )
 
     embedding_model_type, embedding_model_name = EMBEDDING_MODELS[selected_model]
+
+    # Save selected model to config
+    if selected_model != config["last_embedding_model"]:
+        config["last_embedding_model"] = selected_model
+        save_config(config)
+
+    # Initialize the selected embedding model
+    underlying_embeddings = initialize_embeddings(
+        embedding_model_type, embedding_model_name
+    )
+
+    # Create cached embeddings
+    cached_embeddings = CacheBackedEmbeddings.from_bytes_store(
+        underlying_embeddings=underlying_embeddings,
+        document_embedding_cache=store,
+        namespace=getattr(
+            underlying_embeddings,
+            "model",
+            getattr(underlying_embeddings, "model_name", embedding_model_name),
+        ),
+    )
 
     # Embedding button
     if st.button(
@@ -257,6 +266,9 @@ with st.sidebar:
         msgs.clear()
         st.success("Conversation reset!")
         st.rerun()
+
+# Initialize OpenAI model
+llm = ChatOpenAI(model_name=answer_model_name, temperature=0.1)
 
 
 def create_obsidian_link(file_path: str, obsidian_vault_path: str) -> str:
