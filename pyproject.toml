@@ -6,7 +6,7 @@ authors = ["anpigon <markan82@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.11,<3.13"
+python = ">=3.11,<3.12"
 langchain = "^0.2.10"
 langchainhub = "^0.1.20"
 langchain_chroma = "^0.1.1"
@@ -14,7 +14,6 @@ langchain_community = "^0.2.9"
 langchain_text_splitters = "^0.2.2"
 sentence_transformers = "^3.0.1"
 chromadb = "^0.5.0"
-gradio = "^4.33.0"
 streamlit = "^1.36.0"
 flagembedding = "^1.2.10"
 python-dotenv = "^1.0.1"
