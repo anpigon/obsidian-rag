@@ -150,12 +150,16 @@ def load_vectorstore(obsidian_path: str) -> tuple[VectorStore, KiwiBM25Retriever
         texts,
         cached_embeddings,
     )
+    print("Vectorstore created!")
+
+    # 진행률 업데이트
+    progress_bar.progress(0.5)  # Vectorstore 생성 후 50%로 업데이트
 
     bm25_retriever = KiwiBM25Retriever.from_documents(texts)
+    print("BM25 retriever created!")
 
-    for i, _ in enumerate(texts):
-        progress = (i + 1) / total_texts
-        progress_bar.progress(progress)
+    # 진행률 업데이트
+    progress_bar.progress(1.0)  # BM25 retriever 생성 후 100%로 업데이트
 
     st.success("Embedding completed!")
     return (vectorstore, bm25_retriever)
