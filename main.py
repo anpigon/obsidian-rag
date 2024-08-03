@@ -79,8 +79,9 @@ def load_vectorstore(obsidian_path: str) -> tuple[VectorStore, KiwiBM25Retriever
     progress_bar.progress(0.75)  # 진행률 업데이트
 
     print("load start bm25 retriever")
-    bm25_retriever = KiwiBM25Retriever.from_documents(texts)
-    bm25_retriever.k = 10
+    bm25_retriever = KiwiBM25Retriever.from_documents(
+        documents=texts, bm25_params={"k": 10}
+    )
     print("BM25 retriever created!")
     progress_bar.progress(1.0)  # 진행률 업데이트
 
@@ -193,7 +194,7 @@ def generate_rag_chain(retriever: BaseRetriever) -> RunnableWithMessageHistory:
 
     prompt = ChatPromptTemplate.from_messages(
         [
-            ("system", prompt_template),
+            ("system", prompt_template.template),
             MessagesPlaceholder(variable_name="chat_history"),
             ("human", "{question}"),
         ]
