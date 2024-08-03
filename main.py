@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 from helper.constants import EMBEDDING_MODELS
 from helper.load_config import load_config, save_config
+from helper.utils import get_device
 
 load_dotenv()
 
@@ -64,8 +65,8 @@ store = LocalFileStore(root_path / ".cached_embeddings")
 
 # Initialize embedding model based on selection
 def initialize_embeddings(model_type, model_name):
-    model_kwargs = {"device": "mps"}  # Change to "cuda" if using GPU
-    encode_kwargs = {"normalize_embeddings": False}
+    model_kwargs = {"device": get_device()}  # Change to "cuda" if using GPU
+    encode_kwargs = {"normalize_embeddings": True}
 
     if model_type == "openai":
         return OpenAIEmbeddings(model=model_name)
