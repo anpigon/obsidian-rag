@@ -13,7 +13,6 @@ from langchain_chroma import Chroma
 from langchain_community.chat_message_histories.streamlit import (
     StreamlitChatMessageHistory,
 )
-from langchain_community.chat_models import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import load_prompt
 from langchain_core.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
@@ -182,6 +181,24 @@ with st.sidebar:
         retriever = load_retriever(obsidian_path)
         st.session_state.retriever = retriever
 
+    # Response model selection
+    st.subheader("Response Model Selection")
+    response_models = {
+        "OpenAI GPT-4o": "gpt-4o",
+        "OpenAI GPT-4o-mini": "gpt-4o-mini",
+        "Google Gemini 1.5 Pro": "gemini-1.5-pro",
+        "Google Gemini 1.5 Fresh": "gemini-1.5-fresh",
+        "Groq Llama 3.1 405B": "llama-3.1-405b-reasoning",
+        "Groq Llama 3.1 70B": "llama-3.1-70b-versatile",
+        "Groq Llama 3.1 8B": "llama-3.1-8b-instant",
+        "Ollama Llama 3.1": "llama3.1",
+    }
+    selected_response_model = st.selectbox(
+        "Choose a response model:",
+        options=list(response_models.keys()),
+        index=0,
+        key="response_model_select",
+    )
     # Reset conversation button
     if st.button(
         "🔄 Reset Conversation",
@@ -192,8 +209,37 @@ with st.sidebar:
         st.success("Conversation reset!")
         st.rerun()
 
+
 # Initialize OpenAI model
-llm = ChatOpenAI(model_name=answer_model_name, temperature=0.1)
+# llm = ChatOpenAI(model_name=answer_model_name, temperature=0.1)
+# Initialize language model based on selection
+def initialize_llm(model_name: str):
+    temperature = 0.1
+    if model_name in ["gpt-4o", "gpt-4o-mini"]:
+        from langchain_community.chat_models import ChatOpenAI
+
+        return ChatOpenAI(model_name=model_name, temperature=temperature)
+    elif model_name in ["gemini-1.5-pro", "gemini-1.5-fresh"]:
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        return ChatGoogleGenerativeAI(model=model_name, temperature=temperature)
+    elif model_name in [
+        "llama-3.1-405b-reasoning",
+        "llama-3.1-70b-versatile",
+        "llama-3.1-8b-instant",
+    ]:
+        from langchain_groq import ChatGroq
+
+        return ChatGroq(model_name=model_name, temperature=temperature)
+    elif model_name in ["llama3.1"]:
+        from langchain_community.chat_models import ChatOllama
+
+        return ChatOllama(model=model_name, temperature=temperature)
+    else:
+        raise ValueError(f"Unsupported model: {model_name}")
+
+
+llm = initialize_llm(response_models[selected_response_model])
 
 
 # RAG chain setup
