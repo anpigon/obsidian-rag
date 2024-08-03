@@ -1,10 +1,10 @@
 import os
+from operator import itemgetter
 from pathlib import Path
 from urllib.parse import quote
-from dotenv import load_dotenv
-from operator import itemgetter
 
 import streamlit as st
+from dotenv import load_dotenv
 from langchain.retrievers import BM25Retriever, EnsembleRetriever
 from langchain.retrievers.multi_query import MultiQueryRetriever
 from langchain.storage import LocalFileStore
@@ -33,15 +33,6 @@ logging.langsmith("obsidian-rag", set_enable=True)
 
 root_path = Path.cwd()
 
-answer_model_name = os.getenv("MODEL_NAME", "gpt-4o-mini")
-
-# Chat history
-msgs = StreamlitChatMessageHistory(key="chat_messages")
-
-
-# Streamlit app setup
-st.set_page_config(page_title="Obsidian RAG Chatbot", page_icon=":books:")
-st.title("Obsidian RAG Chatbot")
 
 # 설정 로드
 config = load_config()
@@ -49,8 +40,18 @@ config = load_config()
 # Initialize cache storage
 store = LocalFileStore(root_path / ".cached_embeddings")
 
+answer_model_name = os.getenv("MODEL_NAME", "gpt-4o-mini")
+
+# Chat history
+msgs = StreamlitChatMessageHistory(key="chat_messages")
+
+# Streamlit app setup
+st.set_page_config(page_title="Obsidian RAG Chatbot", page_icon=":books:")
+st.title("Obsidian RAG Chatbot")
+
 
 # Load Obsidian notes and create vector store
+@st.cache_resource(show_spinner="Loading Obsidian notes...")
 def load_vectorstore(obsidian_path: str) -> tuple[VectorStore, KiwiBM25Retriever]:
     loader = MyObsidianLoader(obsidian_path, encoding="utf-8", collect_metadata=True)
     documents = loader.load()
