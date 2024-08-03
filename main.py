@@ -59,31 +59,30 @@ st.header("💬 Chat with your Obsidian Notes")
 # Load Obsidian notes and create vector store
 @st.cache_resource(show_spinner="Loading Obsidian notes...")
 def load_vectorstore(obsidian_path: str) -> tuple[VectorStore, KiwiBM25Retriever]:
+    progress_bar = st.progress(0)
+
+    print("load start obsidian note file")
     loader = MyObsidianLoader(obsidian_path, encoding="utf-8", collect_metadata=True)
     documents = loader.load()
+    print("load end obsidian note file")
+    progress_bar.progress(0.25)  # 진행률 업데이트
+
     text_splitter = RecursiveCharacterTextSplitter.from_language(
         chunk_size=1024, chunk_overlap=24, language=Language.MARKDOWN
     )
     texts = text_splitter.split_documents(documents)
+    progress_bar.progress(0.5)  # 진행률 업데이트
 
-    progress_bar = st.progress(0)
-    total_texts = len(texts)
-
-    vectorstore = Chroma.from_documents(
-        texts,
-        embeddings,
-    )
+    print("load start embeddings")
+    vectorstore = Chroma.from_documents(texts, embeddings)
     print("Vectorstore created!")
+    progress_bar.progress(0.75)  # 진행률 업데이트
 
-    # 진행률 업데이트
-    progress_bar.progress(0.5)  # Vectorstore 생성 후 50%로 업데이트
-
+    print("load start bm25 retriever")
     bm25_retriever = KiwiBM25Retriever.from_documents(texts)
     bm25_retriever.k = 10
     print("BM25 retriever created!")
-
-    # 진행률 업데이트
-    progress_bar.progress(1.0)  # BM25 retriever 생성 후 100%로 업데이트
+    progress_bar.progress(1.0)  # 진행률 업데이트
 
     st.success("Embedding completed!")
     return (vectorstore, bm25_retriever)
