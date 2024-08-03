@@ -1,46 +1,33 @@
-import json
-from urllib.parse import quote
-
-from dotenv import load_dotenv
-
-from helper.constants import EMBEDDING_MODELS
-from helper.load_config import load_config, save_config
-from helper.utils import get_device
-
-load_dotenv()
-
 import os
-from operator import itemgetter
 from pathlib import Path
+from urllib.parse import quote
+from dotenv import load_dotenv
+from operator import itemgetter
 
 import streamlit as st
-from langchain.embeddings import CacheBackedEmbeddings
 from langchain.retrievers import BM25Retriever, EnsembleRetriever
 from langchain.retrievers.multi_query import MultiQueryRetriever
 from langchain.storage import LocalFileStore
 from langchain.text_splitter import Language, RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
-from langchain_cohere.embeddings import CohereEmbeddings
 from langchain_community.chat_message_histories.streamlit import (
     StreamlitChatMessageHistory,
 )
 from langchain_community.chat_models import ChatOpenAI
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
-from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import PromptTemplate
 from langchain_core.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.vectorstores import VectorStore
-from langchain_huggingface.embeddings import HuggingFaceEmbeddings
-from langchain_openai import OpenAIEmbeddings
 from langchain_teddynote import logging
 from langchain_teddynote.retrievers import KiwiBM25Retriever
-from langchain_upstage.embeddings import UpstageEmbeddings
-from streamlit_extras.stylable_container import stylable_container
 
 from document_loaders.obsidian import MyObsidianLoader
+from helper.constants import EMBEDDING_MODELS
+from helper.initialize_embeddings import initialize_embeddings
+from helper.load_config import load_config, save_config
+
+load_dotenv()
 
 logging.langsmith("obsidian-rag", set_enable=True)
 
@@ -63,33 +50,6 @@ config = load_config()
 store = LocalFileStore(root_path / ".cached_embeddings")
 
 
-# Initialize embedding model based on selection
-def initialize_embeddings(model_type, model_name):
-    model_kwargs = {"device": get_device()}  # Change to "cuda" if using GPU
-    encode_kwargs = {"normalize_embeddings": True}
-
-    if model_type == "openai":
-        return OpenAIEmbeddings(model=model_name)
-    elif model_type == "hf_bge":
-        return HuggingFaceBgeEmbeddings(
-            model_name=model_name,
-            model_kwargs=model_kwargs,
-            encode_kwargs=encode_kwargs,
-        )
-    elif model_type == "hf":
-        return HuggingFaceEmbeddings(
-            model_name=model_name,
-            model_kwargs=model_kwargs,
-            encode_kwargs=encode_kwargs,
-        )
-    elif model_type == "upstage":
-        return UpstageEmbeddings(model_name=model_name)
-    elif model_type == "cohere":
-        return CohereEmbeddings(model=model_name)
-    else:
-        raise ValueError(f"Unknown model type: {model_type}")
-
-
 # Load Obsidian notes and create vector store
 def load_vectorstore(obsidian_path: str) -> tuple[VectorStore, KiwiBM25Retriever]:
     loader = MyObsidianLoader(obsidian_path, encoding="utf-8", collect_metadata=True)
@@ -104,7 +64,7 @@ def load_vectorstore(obsidian_path: str) -> tuple[VectorStore, KiwiBM25Retriever
 
     vectorstore = Chroma.from_documents(
         texts,
-        cached_embeddings,
+        embeddings,
     )
     print("Vectorstore created!")
 
@@ -193,19 +153,9 @@ with st.sidebar:
         save_config(config)
 
     # Initialize the selected embedding model
-    underlying_embeddings = initialize_embeddings(
-        embedding_model_type, embedding_model_name
-    )
-
-    # Create cached embeddings
-    cached_embeddings = CacheBackedEmbeddings.from_bytes_store(
-        underlying_embeddings=underlying_embeddings,
-        document_embedding_cache=store,
-        namespace=getattr(
-            underlying_embeddings,
-            "model",
-            getattr(underlying_embeddings, "model_name", embedding_model_name),
-        ),
+    embeddings = initialize_embeddings(
+        embedding_model_type,
+        embedding_model_name,
     )
 
     # Embedding button
