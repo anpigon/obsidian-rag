@@ -163,8 +163,7 @@ with st.sidebar:
     if st.button(
         "🚀 Start Embedding", key="start_embedding_button", use_container_width=True
     ):
-        with st.spinner("Embedding in progress..."):
-            (vectorstore, bm25_retriever) = load_vectorstore(obsidian_path)
+        (vectorstore, bm25_retriever) = load_vectorstore(obsidian_path)
         st.session_state.vectorstore = vectorstore
         st.session_state.bm25_retriever = bm25_retriever
 
@@ -182,10 +181,17 @@ with st.sidebar:
 llm = ChatOpenAI(model_name=answer_model_name, temperature=0.1)
 
 
-def create_obsidian_link(file_path: str, obsidian_vault_path: str) -> str:
-    relative_path = os.path.relpath(file_path, obsidian_vault_path)
-    encoded_path = quote(relative_path)
-    return f"obsidian://open?vault={os.path.basename(obsidian_vault_path)}&file={encoded_path}"
+def create_obsidian_link(file_path: str) -> str:
+    encoded_path = quote(file_path)
+    return f"obsidian://open?path={encoded_path}"
+
+
+def format_documents(docs):
+    formatted_docs = []
+    for doc in docs:
+        formatted_doc = f"**Title:** {doc.metadata['source']}\n**Content:**\n {doc.page_content}\n**Source:** [{doc.metadata['source']}]({create_obsidian_link(doc.metadata['path'])})"
+        formatted_docs.append(formatted_doc)
+    return ("\n" + "-" * 50 + "\n").join(formatted_docs)
 
 
 # RAG chain setup
@@ -199,8 +205,8 @@ def rag_chain():
 
     After your response, provide the sources of your information in the following format:
     **Sources:**
-    - [note title 1](obsidian://open?path=url-encoded_file_absolute_path)
-    - [note title 2](obsidian://open?path=url-encoded_file_absolute_path)
+    - (source 1)
+    - (source 2)
     ...
 
     Ensure each source is on a new line and follows the Markdown link format.
@@ -237,7 +243,7 @@ def rag_chain():
 
     rag_chain = (
         RunnablePassthrough.assign(
-            context=itemgetter("question") | multi_query_retriever
+            context=itemgetter("question") | multi_query_retriever | format_documents
         )
         | {
             "context": itemgetter("context"),
