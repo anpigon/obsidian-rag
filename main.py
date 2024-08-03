@@ -3,6 +3,9 @@ from urllib.parse import quote
 
 from dotenv import load_dotenv
 
+from helper.constants import EMBEDDING_MODELS
+from helper.load_config import load_config, save_config
+
 load_dotenv()
 
 import os
@@ -44,56 +47,8 @@ root_path = Path.cwd()
 
 answer_model_name = os.getenv("MODEL_NAME", "gpt-4o-mini")
 
-# 설정 파일 경로
-CONFIG_FILE = Path.home() / ".obsidian_rag_config.json"
-
-# Embedding model options
-EMBEDDING_MODELS = {
-    "OpenAI text-embedding-3-small": ("openai", "text-embedding-3-small"),
-    "OpenAI text-embedding-3-large": ("openai", "text-embedding-3-large"),
-    "HuggingFace BAAI/bge-m3": ("hf_bge", "BAAI/bge-m3"),
-    "HuggingFace intfloat/multilingual-e5-large-instruct": (
-        "hf",
-        "intfloat/multilingual-e5-large-instruct",
-    ),
-    "HuggingFace intfloat/multilingual-e5-large": (
-        "hf",
-        "intfloat/multilingual-e5-large",
-    ),
-    "Upstage solar-embedding-1-large": ("upstage", "solar-embedding-1-large"),
-    "Cohere embed-multilingual-v3.0": ("cohere", "embed-multilingual-v3.0"),
-}
-
 # Chat history
 msgs = StreamlitChatMessageHistory(key="chat_messages")
-
-
-def load_config():
-    if CONFIG_FILE.exists():
-        with open(CONFIG_FILE, "r") as f:
-            config = json.load(f)
-    else:
-        config = {}
-
-    # Set default values if keys are missing
-    if "last_path" not in config:
-        config["last_path"] = ""
-    if "saved_paths" not in config:
-        config["saved_paths"] = []
-    if (
-        "last_embedding_model" not in config
-        or config["last_embedding_model"] not in EMBEDDING_MODELS
-    ):
-        config["last_embedding_model"] = list(EMBEDDING_MODELS.keys())[
-            0
-        ]  # Default to the first model
-
-    return config
-
-
-def save_config(config):
-    with open(CONFIG_FILE, "w") as f:
-        json.dump(config, f)
 
 
 # Streamlit app setup
