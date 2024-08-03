@@ -15,7 +15,9 @@ from langchain_community.chat_message_histories.streamlit import (
 )
 from langchain_community.chat_models import ChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import load_prompt
 from langchain_core.prompts.chat import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.vectorstores import VectorStore
@@ -26,6 +28,7 @@ from document_loaders.obsidian import MyObsidianLoader
 from helper.constants import EMBEDDING_MODELS
 from helper.initialize_embeddings import initialize_embeddings
 from helper.load_config import load_config, save_config
+from helper.utils import format_documents
 
 load_dotenv()
 
@@ -48,6 +51,9 @@ msgs = StreamlitChatMessageHistory(key="chat_messages")
 # Streamlit app setup
 st.set_page_config(page_title="Obsidian RAG Chatbot", page_icon=":books:")
 st.title("Obsidian RAG Chatbot")
+
+# Main interface
+st.header("💬 Chat with your Obsidian Notes")
 
 
 # Load Obsidian notes and create vector store
@@ -73,6 +79,7 @@ def load_vectorstore(obsidian_path: str) -> tuple[VectorStore, KiwiBM25Retriever
     progress_bar.progress(0.5)  # Vectorstore 생성 후 50%로 업데이트
 
     bm25_retriever = KiwiBM25Retriever.from_documents(texts)
+    bm25_retriever.k = 10
     print("BM25 retriever created!")
 
     # 진행률 업데이트
@@ -181,36 +188,9 @@ with st.sidebar:
 llm = ChatOpenAI(model_name=answer_model_name, temperature=0.1)
 
 
-def create_obsidian_link(file_path: str) -> str:
-    encoded_path = quote(file_path)
-    return f"obsidian://open?path={encoded_path}"
-
-
-def format_documents(docs):
-    formatted_docs = []
-    for doc in docs:
-        formatted_doc = f"**Title:** {doc.metadata['source']}\n**Content:**\n {doc.page_content}\n**Source:** [{doc.metadata['source']}]({create_obsidian_link(doc.metadata['path'])})"
-        formatted_docs.append(formatted_doc)
-    return ("\n" + "-" * 50 + "\n").join(formatted_docs)
-
-
 # RAG chain setup
-def rag_chain():
-    prompt_template = """You are an assistant whose primary purpose is to help with questions or inquiries about notes written in Markdown. Base your answer on the provided CONTEXT and the chat history.
-
-    Use the following context snippets to answer the question:
-    <CONTEXT>
-    {context}
-    </CONTEXT>
-
-    After your response, provide the sources of your information in the following format:
-    **Sources:**
-    - (source 1)
-    - (source 2)
-    ...
-
-    Ensure each source is on a new line and follows the Markdown link format.
-    """
+def generate_rag_chain(retriever: BaseRetriever) -> RunnableWithMessageHistory:
+    prompt_template = load_prompt("prompts/obsidian_rag.yaml")
 
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -220,24 +200,9 @@ def rag_chain():
         ]
     )
 
-    # VectorStoreRetriever
-    vectorstore_retriever = st.session_state.vectorstore.as_retriever(
-        search_type="mmr", search_kwargs={"k": 4}
-    )
-
-    # BM25Retriever
-    bm25_retriever = st.session_state.bm25_retriever
-
-    # EnsembleRetriever
-    ensemble_retriever = EnsembleRetriever(
-        retrievers=[bm25_retriever, vectorstore_retriever],
-        weights=[0.4, 0.6],
-        search_type="mmr",
-    )
-
     # MultiQueryRetriever
     multi_query_retriever = MultiQueryRetriever.from_llm(
-        retriever=ensemble_retriever,
+        retriever=retriever,
         llm=llm,
     )
 
@@ -263,14 +228,40 @@ def rag_chain():
     )
 
 
+def generate_retriever(
+    vectorstore: VectorStore, bm25_retriever: BM25Retriever
+) -> BaseRetriever:
+    # VectorStoreRetriever
+    vectorstore_retriever = vectorstore.as_retriever(
+        search_type="mmr", search_kwargs={"k": 10}
+    )
+
+    # EnsembleRetriever
+    ensemble_retriever = EnsembleRetriever(
+        retrievers=[bm25_retriever, vectorstore_retriever],
+        weights=[0.6, 0.4],
+        search_type="mmr",
+    )
+
+    # TODO: add reranker
+
+    return ensemble_retriever
+
+
 # Handle user input
 def handle_user_input(user_question):
     st.chat_message("human").write(user_question)
 
-    if "vectorstore" in st.session_state:
-        chain = rag_chain()
+    if "vectorstore" in st.session_state and "bm25_retriever" in st.session_state:
+        retriever = generate_retriever(
+            st.session_state.vectorstore, st.session_state.bm25_retriever
+        )
+
+        rag_chain = generate_rag_chain(retriever)
+
         config = {"configurable": {"session_id": "default"}}
-        response = chain.stream({"question": user_question}, config=config)
+        response = rag_chain.stream({"question": user_question}, config=config)
+
         with st.chat_message("ai"):
             container = st.empty()
             answer = ""
@@ -280,9 +271,6 @@ def handle_user_input(user_question):
     else:
         st.warning("Please embed your Obsidian folder first.")
 
-
-# Main interface
-st.header("💬 Chat with your Obsidian Notes")
 
 # Display previous messages
 for msg in msgs.messages:
