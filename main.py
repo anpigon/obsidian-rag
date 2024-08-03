@@ -157,14 +157,21 @@ with st.sidebar:
     selected_model = st.selectbox(
         "Choose an embedding model:",
         options=list(EMBEDDING_MODELS.keys()),
-        index=list(EMBEDDING_MODELS.keys()).index(config["last_embedding_model"]),
+        index=(
+            list(EMBEDDING_MODELS.keys()).index(config["last_embedding_model"])
+            if "last_embedding_model" in config
+            else 0
+        ),
         key="embedding_model_select",
     )
 
     embedding_model_type, embedding_model_name = EMBEDDING_MODELS[selected_model]
 
     # Save selected model to config
-    if selected_model != config["last_embedding_model"]:
+    if (
+        "last_embedding_model" not in config
+        or selected_model != config["last_embedding_model"]
+    ):
         config["last_embedding_model"] = selected_model
         save_config(config)
 
@@ -196,9 +203,21 @@ with st.sidebar:
     selected_response_model = st.selectbox(
         "Choose a response model:",
         options=list(response_models.keys()),
-        index=0,
+        index=(
+            list(response_models.keys()).index(config["last_response_model"])
+            if "last_response_model" in config
+            else 0
+        ),
         key="response_model_select",
     )
+    # Save selected model to config
+    if (
+        "last_response_model" not in config
+        or selected_response_model != config["last_response_model"]
+    ):
+        config["last_response_model"] = selected_response_model
+        save_config(config)
+
     # Reset conversation button
     if st.button(
         "🔄 Reset Conversation",
