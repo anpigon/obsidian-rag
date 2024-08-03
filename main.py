@@ -58,7 +58,7 @@ st.header("💬 Chat with your Obsidian Notes")
 
 # Load Obsidian notes and create vector store
 @st.cache_resource(show_spinner="Loading Obsidian notes...")
-def load_vectorstore(obsidian_path: str) -> tuple[VectorStore, KiwiBM25Retriever]:
+def load_retriever(obsidian_path: str) -> tuple[VectorStore, KiwiBM25Retriever]:
     progress_bar = st.progress(0)
 
     print("load start obsidian note file")
@@ -75,6 +75,9 @@ def load_vectorstore(obsidian_path: str) -> tuple[VectorStore, KiwiBM25Retriever
 
     print("load start embeddings")
     vectorstore = Chroma.from_documents(texts, embeddings)
+    vectorstore_retriever = vectorstore.as_retriever(
+        search_type="mmr", search_kwargs={"k": 10}
+    )
     print("Vectorstore created!")
     progress_bar.progress(0.75)  # 진행률 업데이트
 
@@ -86,7 +89,14 @@ def load_vectorstore(obsidian_path: str) -> tuple[VectorStore, KiwiBM25Retriever
     progress_bar.progress(1.0)  # 진행률 업데이트
 
     st.success("Embedding completed!")
-    return (vectorstore, bm25_retriever)
+
+    # EnsembleRetriever
+    retriever = EnsembleRetriever(
+        retrievers=[bm25_retriever, vectorstore_retriever],
+        weights=[0.6, 0.4],
+        search_type="mmr",
+    )
+    return retriever
 
 
 # Sidebar for Obsidian folder path input
@@ -170,9 +180,8 @@ with st.sidebar:
     if st.button(
         "🚀 Start Embedding", key="start_embedding_button", use_container_width=True
     ):
-        (vectorstore, bm25_retriever) = load_vectorstore(obsidian_path)
-        st.session_state.vectorstore = vectorstore
-        st.session_state.bm25_retriever = bm25_retriever
+        retriever = load_retriever(obsidian_path)
+        st.session_state.retriever = retriever
 
     # Reset conversation button
     if st.button(
@@ -228,35 +237,13 @@ def generate_rag_chain(retriever: BaseRetriever) -> RunnableWithMessageHistory:
     )
 
 
-def generate_retriever(
-    vectorstore: VectorStore, bm25_retriever: BM25Retriever
-) -> BaseRetriever:
-    # VectorStoreRetriever
-    vectorstore_retriever = vectorstore.as_retriever(
-        search_type="mmr", search_kwargs={"k": 10}
-    )
-
-    # EnsembleRetriever
-    ensemble_retriever = EnsembleRetriever(
-        retrievers=[bm25_retriever, vectorstore_retriever],
-        weights=[0.6, 0.4],
-        search_type="mmr",
-    )
-
-    # TODO: add reranker
-
-    return ensemble_retriever
-
-
 # Handle user input
 def handle_user_input(user_question):
     st.chat_message("human").write(user_question)
 
-    if "vectorstore" in st.session_state and "bm25_retriever" in st.session_state:
-        retriever = generate_retriever(
-            st.session_state.vectorstore, st.session_state.bm25_retriever
-        )
-
+    if "retriever" in st.session_state:
+        # TODO: add reranker
+        retriever = st.session_state.retriever
         rag_chain = generate_rag_chain(retriever)
 
         config = {"configurable": {"session_id": "default"}}
