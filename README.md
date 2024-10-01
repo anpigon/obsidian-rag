@@ -11,6 +11,12 @@ Obsidian-Rag는 Langchain을 활용하여 마크다운 파일에서 RAG를 수�
 - 벡터화된 데이터에서 유사도 검색 수행.
 - `ChatOllama`, `ObsidianLoader`, `OllamaEmbeddings`, `Chroma`와 같은 Langchain 라이브러리의 기능 활용.
 
+## 서브 모듈 초기화 및 업데이트
+
+```sh
+git submodule update --init --recursive
+```
+
 ## 의존성
 
 `poerty`를 사용하여 의존성 패키지를 설치해야 합니다.
@@ -26,4 +32,3 @@ poetry install
 ```sh
 poetry run streamlit run main.py
 ```
-

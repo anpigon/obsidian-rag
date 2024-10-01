@@ -1,0 +1,3 @@
+[submodule "obsidian-help"]
+	path = obsidian-help
+	url = git@github.com:obsidianmd/obsidian-help.git
