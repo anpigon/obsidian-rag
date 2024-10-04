@@ -30,6 +30,9 @@ unstructured = "^0.15.13"
 streamlit-extras = "^0.4.7"
 faiss-cpu = "^1.8.0.post1"
 flashrank = "^0.2.9"
+langchain-experimental = "^0.3.2"
+rank-bm25 = "^0.2.2"
+langchain-ollama = "^0.2.0"
 
 
 
