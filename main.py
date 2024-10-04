@@ -5,10 +5,16 @@ from urllib.parse import quote
 
 import streamlit as st
 from dotenv import load_dotenv
-from langchain.retrievers import BM25Retriever, EnsembleRetriever
+from langchain.retrievers import  EnsembleRetriever
+
+from langchain_community.retrievers import BM25Retriever
 from langchain.retrievers.multi_query import MultiQueryRetriever
 from langchain.storage import LocalFileStore
-from langchain.text_splitter import Language, RecursiveCharacterTextSplitter
+
+
+from langchain_text_splitters import Language
+
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 from langchain_community.chat_message_histories.streamlit import (
     StreamlitChatMessageHistory,
@@ -235,7 +241,7 @@ with st.sidebar:
 def initialize_llm(model_name: str):
     temperature = 0.1
     if model_name in ["gpt-4o", "gpt-4o-mini"]:
-        from langchain_community.chat_models import ChatOpenAI
+        from langchain_openai import ChatOpenAI
 
         return ChatOpenAI(model_name=model_name, temperature=temperature)
     elif model_name in ["gemini-1.5-pro", "gemini-1.5-fresh"]:

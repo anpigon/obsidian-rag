@@ -9,7 +9,11 @@ from pathlib import Path
 import streamlit as st
 from langchain.embeddings import CacheBackedEmbeddings
 from langchain.storage import LocalFileStore
-from langchain.text_splitter import Language, RecursiveCharacterTextSplitter
+
+
+from langchain_text_splitters import Language
+
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 from langchain_huggingface.embeddings import HuggingFaceEmbeddings
 
