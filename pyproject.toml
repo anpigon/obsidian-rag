@@ -28,6 +28,8 @@ flagembedding = "^1.2.11"
 python-dotenv = "^1.0.1"
 unstructured = "^0.15.13"
 streamlit-extras = "^0.4.7"
+faiss-cpu = "^1.8.0.post1"
+flashrank = "^0.2.9"
 
 
 
