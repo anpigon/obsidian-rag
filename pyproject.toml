@@ -33,6 +33,7 @@ flashrank = "^0.2.9"
 langchain-experimental = "^0.3.2"
 rank-bm25 = "^0.2.2"
 langchain-ollama = "^0.2.0"
+litellm = "^1.48.16"
 
 
 
