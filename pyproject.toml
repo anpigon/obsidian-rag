@@ -34,6 +34,8 @@ langchain-experimental = "^0.3.2"
 rank-bm25 = "^0.2.2"
 langchain-ollama = "^0.2.0"
 litellm = "^1.48.16"
+tqdm = "^4.66.5"
+langchain-openai = "^0.2.2"
 
 
 
